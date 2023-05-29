@@ -9,11 +9,11 @@ use Laravel\Sanctum\HasApiTokens;
 
 class Task extends Model
 {
-    use HasFactory, SoftDeletes, HasApiTokens;
+    use HasFactory, HasApiTokens;
     protected $fillable = [
         'title',
         'description',
-        'status',
+        'status_id',
         'user_id'
     ];
     protected $table = "tasks";
