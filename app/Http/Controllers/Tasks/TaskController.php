@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Tasks;
 
-use Illuminate\Http\Request;
 use App\Http\Requests\TaskRequest;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\TaskResource;
 use App\Repositories\TaskRepositoryInterface;
-use App\Models\Task;
+use Illuminate\Auth\Access\AuthorizationException;
 
 class TaskController extends Controller
 {
@@ -22,37 +22,39 @@ class TaskController extends Controller
         $user = auth()->user();
         $tasks = $this->taskRepository->getTasksByUser($user);
 
-        return response()->json([
-            'message' => 'Tasks retrieved successfully',
-            'tasks' => $tasks,
-            'status' => 200,
-        ]);
+        return TaskResource::collection($tasks)
+            ->additional([
+                'message' => 'Tasks retrieved successfully',
+            ]);
     }
 
     public function show($id)
     {
-        $user = auth()->user();
         $task = $this->taskRepository->findTask($id);
 
         if (!$task) {
             return response()->json([
                 'message' => 'Task not found',
                 'status' => 404,
-            ], 404);
+            ]);
         }
 
-        if ($task->user_id != $user->id) {
+        try {
+            $this->authorize('view', $task);
+
+            return (new TaskResource($task))
+                ->additional([
+                    'message' => 'Task retrieved successfully',
+                    'status' => 200,
+                ]);
+        } catch (AuthorizationException $e) {
+
             return response()->json([
                 'message' => 'You are not authorized to view this task',
+                'error' => $e->getMessage(),
                 'status' => 403,
-            ], 403);
+            ]);
         }
-
-        return response()->json([
-            'message' => 'Task retrieved successfully',
-            'task' => $task,
-            'status' => 200,
-        ]);
     }
 
     public function store(TaskRequest $request)
@@ -63,16 +65,14 @@ class TaskController extends Controller
         $data['user_id'] = $user->id;
         $task = $this->taskRepository->createTask($data);
 
-        return response()->json([
-            'message' => 'Task created successfully',
-            'task' => $task,
-            'status' => 200,
-        ]);
+        return (new TaskResource($task))
+            ->additional([
+                'message' => 'Task created successfully',
+            ]);
     }
 
     public function update(TaskRequest $request, $id)
     {
-        $user = auth()->user();
         $task = $this->taskRepository->findTask($id);
         $status = $request->get('status');
 
@@ -83,31 +83,33 @@ class TaskController extends Controller
             ]);
         }
 
-        if ($task->user_id != $user->id) {
+        try {
+            $this->authorize('update', $task);
+
+            if ($status == 'ongoing') {
+                $task->status_id = 2;
+            } elseif ($status == 'done') {
+                $task->status_id = 3;
+            }
+
+            $this->taskRepository->updateTask($task, $request->validated());
+
+            return (new TaskResource($task))
+                ->additional([
+                    'message' => 'Task updated successfully',
+                ]);
+        } catch (AuthorizationException $e) {
+
             return response()->json([
                 'message' => 'You are not authorized to update this task',
+                'error' => $e->getMessage(),
                 'status' => 403,
             ]);
         }
-
-        if ($status == 'ongoing') {
-            $task->status_id = 2;
-        } elseif ($status == 'done') {
-            $task->status_id = 3;
-        }
-
-        $this->taskRepository->updateTask($task, $request->validated());
-
-        return response()->json([
-            'message' => 'Task updated successfully',
-            'task' => $task,
-            'status' => 200,
-        ]);
     }
 
     public function destroy($id)
     {
-        $user = auth()->user();
         $task = $this->taskRepository->findTask($id);
 
         if (!$task) {
@@ -117,18 +119,21 @@ class TaskController extends Controller
             ]);
         }
 
-        if ($task->user_id != $user->id) {
+        try {
+            $this->authorize('delete', $task);
+            $this->taskRepository->deleteTask($task);
+
+            return response()->json([
+                'message' => 'Task deleted successfully',
+                'status' => 200,
+            ]);
+        } catch (AuthorizationException $e) {
+
             return response()->json([
                 'message' => 'You are not authorized to delete this task',
+                'error' => $e->getMessage(),
                 'status' => 403,
             ]);
         }
-
-        $this->taskRepository->deleteTask($task);
-
-        return response()->json([
-            'message' => 'Task deleted successfully',
-            'status' => 200,
-        ]);
     }
 }

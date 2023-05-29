@@ -2,10 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Traits\FailedValidationTrait;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class TaskRequest extends FormRequest
 {
+    use FailedValidationTrait;
     /**
      * Determine if the user is authorized to make this request.
      */
